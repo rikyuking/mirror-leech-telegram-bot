@@ -3,7 +3,7 @@ from aiofiles.os import remove as aioremove, path as aiopath, mkdir
 from time import time
 from re import search as re_search
 from asyncio import create_subprocess_exec
-from asyncio.subprocess import PIPE
+from asyncio.subprocess import PIPE, DEVNULL
 
 from bot import LOGGER, MAX_SPLIT_SIZE, config_dict, user_data
 from bot.helper.ext_utils.bot_utils import cmd_exec
@@ -13,8 +13,15 @@ from bot.helper.ext_utils.fs_utils import ARCH_EXT, get_mime_type
 
 async def is_multi_streams(path):
     try:
-        result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
-                                 "json", "-show_streams", path])
+        result = await cmd_exec([
+            "ffprobe",
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            "--",
+            path
+        ])
         if res := result[1]:
             LOGGER.warning(f'Get Video Streams: {res}')
     except Exception as e:
@@ -36,8 +43,15 @@ async def is_multi_streams(path):
 
 async def get_media_info(path):
     try:
-        result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
-                                 "json", "-show_format", path])
+        result = await cmd_exec([
+            "ffprobe",
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            "--",
+            path
+        ])
         if res := result[1]:
             LOGGER.warning(f'Get Media Info: {res}')
     except Exception as e:
@@ -66,8 +80,15 @@ async def get_document_type(path):
     if not mime_type.startswith('video') and not mime_type.endswith('octet-stream'):
         return is_video, is_audio, is_image
     try:
-        result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
-                                 "json", "-show_streams", path])
+        result = await cmd_exec([
+            "ffprobe",
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            "--",
+            path
+        ])
         if res := result[1]:
             LOGGER.warning(f'Get Document Type: {res}')
     except Exception as e:
@@ -94,14 +115,26 @@ async def take_ss(video_file, duration):
         duration = (await get_media_info(video_file))[0]
     if duration == 0:
         duration = 3
-    duration = duration // 2
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", str(duration),
-           "-i", video_file, "-vf", "thumbnail", "-frames:v", "1", des_dir]
-    status = await create_subprocess_exec(*cmd, stderr=PIPE)
+    duration = duration // 1
+    #cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", str(duration),
+    #       "-i", video_file, "-vf", "thumbnail", "-frames:v", "1", des_dir]
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel", "error",
+        "-nostdin",
+        "-ss", str(round(duration/2)),
+        "-i", video_file,
+        "-vframes", "1",
+        "-y",
+        des_dir
+    ]
+    status = await create_subprocess_exec(*cmd, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = await status.communicate()
     if await status.wait() != 0 or not await aiopath.exists(des_dir):
-        err = (await status.stderr.read()).decode().strip()
+        err = stdout if status.returncode == 0 else stderr
         LOGGER.error(
-            f'Error while extracting thumbnail. Name: {video_file} stderr: {err}')
+            f'Error while extracting thumbnail. Name: {video_file} stderr: {err.decode()}')
         return None
     return des_dir
 
