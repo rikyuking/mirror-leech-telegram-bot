@@ -15,7 +15,7 @@ from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.telegram_helper.button_build import ButtonMaker
 from bot.helper.ext_utils.telegraph_helper import telegraph
 
-THREADPOOL = ThreadPoolExecutor(max_workers=1000)
+THREADPOOL = ThreadPoolExecutor(max_workers=16)
 
 MAGNET_REGEX = r'magnet:\?xt=urn:(btih|btmh):[a-zA-Z0-9]*\s*'
 
